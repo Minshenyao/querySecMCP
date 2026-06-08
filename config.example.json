@@ -1,0 +1,21 @@
+{
+  "apis": {
+    "fofa": {
+      "email": "your-email@example.com",
+      "key": "your-fofa-api-key"
+    },
+    "shodan": {
+      "key": "your-shodan-api-key"
+    },
+    "quake": {
+      "key": "your-quake-api-key"
+    },
+    "hunter": {
+      "key": "your-hunter-api-key"
+    },
+    "zoomeye": {
+      "key": "your-zoomeye-api-key"
+    }
+  },
+  "proxy": "http://127.0.0.1:7890"
+}
