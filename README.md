@@ -10,7 +10,7 @@
 
 ### 1. 下载插件
 
-从 [Releases](https://github.com/YOUR_USERNAME/querySecMCP/releases) 下载 `querysec-mcp-1.0.0-jar-with-dependencies.jar`
+从 [Releases](https://github.com/Minshenyao/querySecMCP/releases) 下载 `querysec-mcp-1.0.0-jar-with-dependencies.jar`
 
 或从源码编译：
 
