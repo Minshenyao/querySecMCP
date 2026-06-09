@@ -39,7 +39,6 @@ mvn clean package
 {
   "apis": {
     "fofa": {
-      "email": "your-email@example.com",
       "key": "your-fofa-api-key"
     },
     "shodan": {

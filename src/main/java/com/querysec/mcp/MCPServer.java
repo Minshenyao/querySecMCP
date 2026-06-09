@@ -221,7 +221,6 @@ public class MCPServer {
             Map.of(
                 "query", Map.of("type", "string", "description", "FOFA query syntax"),
                 "api_key", Map.of("type", "string", "description", "FOFA API key"),
-                "email", Map.of("type", "string", "description", "FOFA account email"),
                 "size", Map.of("type", "number", "description", "Number of results (default: 100)")
             ),
             List.of("query", "api_key")
@@ -300,6 +299,9 @@ public class MCPServer {
         Map<String, Object> arguments = (Map<String, Object>) params.get("arguments");
 
         try {
+            // 从配置文件自动填充 API Key
+            arguments = fillApiKeyFromConfig(toolName, arguments);
+
             SearchResult searchResult;
             switch (toolName) {
                 case "fofa_search":
@@ -344,6 +346,41 @@ public class MCPServer {
                 "isError", true
             );
         }
+    }
+
+    /**
+     * 从配置文件自动填充 API Key
+     */
+    private Map<String, Object> fillApiKeyFromConfig(String toolName, Map<String, Object> arguments) {
+        Map<String, Object> result = new HashMap<>(arguments);
+
+        // 如果用户没有提供 api_key，从配置文件读取
+        if (!result.containsKey("api_key") || "placeholder".equals(result.get("api_key"))) {
+            String engineName = null;
+            switch (toolName) {
+                case "fofa_search":
+                    engineName = "fofa";
+                    break;
+                case "shodan_search":
+                    engineName = "shodan";
+                    break;
+                case "quake_search":
+                    engineName = "quake";
+                    break;
+                case "hunter_search":
+                    engineName = "hunter";
+                    break;
+                case "zoomeye_search":
+                    engineName = "zoomeye";
+                    break;
+            }
+
+            if (engineName != null && configManager.hasValidConfig(engineName)) {
+                result.put("api_key", configManager.getAPIKey(engineName));
+            }
+        }
+
+        return result;
     }
 
     private String formatSearchResult(SearchResult result) {

@@ -19,7 +19,7 @@ public class ShodanEngine implements SearchEngine {
 
     public ShodanEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient(null);
+        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override

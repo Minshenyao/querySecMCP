@@ -203,4 +203,45 @@ public class ConfigManager {
             return help;
         }
     }
+
+    public static class ProxyConfig {
+        public boolean enabled;
+        public String type;  // "http", "socks5"
+        public String host;
+        public int port;
+        public String username;
+        public String password;
+
+        public ProxyConfig() {
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public String getType() {
+            return type;
+        }
+
+        public String getHost() {
+            return host;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        public String getUsername() {
+            return username;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public boolean hasAuth() {
+            return username != null && !username.isEmpty() &&
+                   password != null && !password.isEmpty();
+        }
+    }
 }

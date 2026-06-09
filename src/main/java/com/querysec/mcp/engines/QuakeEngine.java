@@ -17,7 +17,7 @@ public class QuakeEngine implements SearchEngine {
 
     public QuakeEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient(null);
+        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override
@@ -63,61 +63,76 @@ public class QuakeEngine implements SearchEngine {
                 JsonObject jsonResponse = gson.fromJson(responseBody, JsonObject.class);
 
                 if (jsonResponse.has("code") && jsonResponse.get("code").getAsInt() == 0) {
-                    JsonObject data = jsonResponse.getAsJsonObject("data");
-                    int total = data.get("total").getAsInt();
-                    result.setTotal(total);
-
+                    // Quake API v3 返回格式：data 是数组，total 在 meta.pagination.total
                     List<Asset> assets = new ArrayList<>();
-                    JsonArray items = data.getAsJsonArray("data");
 
-                    for (int i = 0; i < items.size(); i++) {
-                        JsonObject item = items.get(i).getAsJsonObject();
-                        Asset asset = new Asset();
-
-                        if (item.has("ip")) {
-                            asset.setIp(item.get("ip").getAsString());
-                        }
-
-                        if (item.has("port")) {
-                            asset.setPort(item.get("port").getAsInt());
-                        }
-
-                        if (item.has("hostname")) {
-                            String hostname = item.get("hostname").getAsString();
-                            asset.setHost(hostname);
-                            if (!hostname.isEmpty()) {
-                                asset.setDomains(Arrays.asList(hostname));
+                    // 获取总数
+                    if (jsonResponse.has("meta")) {
+                        JsonObject meta = jsonResponse.getAsJsonObject("meta");
+                        if (meta.has("pagination")) {
+                            JsonObject pagination = meta.getAsJsonObject("pagination");
+                            if (pagination.has("total")) {
+                                // Quake 的 total 可能超过 int 范围，使用 long 然后转换
+                                long total = pagination.get("total").getAsLong();
+                                // 如果超过 int 最大值，设为 int 最大值
+                                result.setTotal(total > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total);
                             }
                         }
+                    }
 
-                        if (item.has("transport")) {
-                            asset.setProtocol(item.get("transport").getAsString());
-                        }
+                    // data 直接是数组
+                    if (jsonResponse.has("data") && jsonResponse.get("data").isJsonArray()) {
+                        JsonArray items = jsonResponse.getAsJsonArray("data");
 
-                        if (item.has("location")) {
-                            JsonObject location = item.getAsJsonObject("location");
-                            if (location.has("country_cn")) {
-                                asset.setCountry(location.get("country_cn").getAsString());
+                        for (int i = 0; i < items.size(); i++) {
+                            JsonObject item = items.get(i).getAsJsonObject();
+                            Asset asset = new Asset();
+
+                            if (item.has("ip")) {
+                                asset.setIp(item.get("ip").getAsString());
                             }
-                            if (location.has("city_cn")) {
-                                asset.setCity(location.get("city_cn").getAsString());
-                            }
-                        }
 
-                        if (item.has("service")) {
-                            JsonObject service = item.getAsJsonObject("service");
-                            if (service.has("http")) {
-                                JsonObject http = service.getAsJsonObject("http");
-                                if (http.has("title")) {
-                                    asset.setTitle(http.get("title").getAsString());
+                            if (item.has("port")) {
+                                asset.setPort(item.get("port").getAsInt());
+                            }
+
+                            if (item.has("hostname")) {
+                                String hostname = item.get("hostname").getAsString();
+                                asset.setHost(hostname);
+                                if (!hostname.isEmpty()) {
+                                    asset.setDomains(Arrays.asList(hostname));
                                 }
                             }
-                            if (service.has("response")) {
-                                asset.setBanner(service.get("response").getAsString());
-                            }
-                        }
 
-                        assets.add(asset);
+                            if (item.has("transport")) {
+                                asset.setProtocol(item.get("transport").getAsString());
+                            }
+
+                            if (item.has("location")) {
+                                JsonObject location = item.getAsJsonObject("location");
+                                if (location.has("country_cn")) {
+                                    asset.setCountry(location.get("country_cn").getAsString());
+                                }
+                                if (location.has("city_cn")) {
+                                    asset.setCity(location.get("city_cn").getAsString());
+                                }
+                            }
+
+                            if (item.has("service")) {
+                                JsonObject service = item.getAsJsonObject("service");
+                                if (service.has("http")) {
+                                    JsonObject http = service.getAsJsonObject("http");
+                                    if (http.has("title")) {
+                                        asset.setTitle(http.get("title").getAsString());
+                                    }
+                                }
+                                if (service.has("response")) {
+                                    asset.setBanner(service.get("response").getAsString());
+                                }
+                            }
+
+                            assets.add(asset);
+                        }
                     }
 
                     result.setAssets(assets);

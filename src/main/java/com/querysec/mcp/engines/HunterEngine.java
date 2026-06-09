@@ -9,6 +9,7 @@ import com.querysec.mcp.utils.ProxyHelper;
 import okhttp3.*;
 
 import java.util.*;
+import java.util.Base64;
 
 public class HunterEngine implements SearchEngine {
     private static final String API_URL = "https://hunter.qianxin.com/openApi/search";
@@ -17,7 +18,7 @@ public class HunterEngine implements SearchEngine {
 
     public HunterEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient(null);
+        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override
@@ -38,8 +39,18 @@ public class HunterEngine implements SearchEngine {
             int pageSize = params.containsKey("page_size") ?
                 ((Number) params.get("page_size")).intValue() : 10;
 
+            // Hunter API 要求 page_size 在 10-100 之间
+            if (pageSize < 10) {
+                pageSize = 10;
+            } else if (pageSize > 100) {
+                pageSize = 100;
+            }
+
+            // Hunter API 要求 search 参数使用 Base64 编码
+            String encodedQuery = Base64.getEncoder().encodeToString(query.getBytes());
+
             String url = String.format("%s?api-key=%s&search=%s&page=%d&page_size=%d",
-                    API_URL, apiKey, query, page, pageSize);
+                    API_URL, apiKey, encodedQuery, page, pageSize);
 
             Request request = new Request.Builder()
                     .url(url)

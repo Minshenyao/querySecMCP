@@ -13,6 +13,7 @@ import okhttp3.Response;
 import java.util.*;
 
 public class ZoomEyeEngine implements SearchEngine {
+    // 使用中国区 API
     private static final String API_URL_HOST = "https://api.zoomeye.org/host/search";
     private static final String API_URL_WEB = "https://api.zoomeye.org/web/search";
     private OkHttpClient client;
@@ -20,7 +21,7 @@ public class ZoomEyeEngine implements SearchEngine {
 
     public ZoomEyeEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient(null);
+        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override
@@ -91,22 +92,38 @@ public class ZoomEyeEngine implements SearchEngine {
 
                     if (match.has("geoinfo")) {
                         JsonObject geoinfo = match.getAsJsonObject("geoinfo");
+
+                        // country 可能是对象或字符串
                         if (geoinfo.has("country")) {
-                            JsonObject country = geoinfo.getAsJsonObject("country");
-                            if (country.has("names")) {
-                                JsonObject names = country.getAsJsonObject("names");
-                                if (names.has("zh-CN")) {
-                                    asset.setCountry(names.get("zh-CN").getAsString());
+                            if (geoinfo.get("country").isJsonObject()) {
+                                JsonObject country = geoinfo.getAsJsonObject("country");
+                                if (country.has("names")) {
+                                    JsonObject names = country.getAsJsonObject("names");
+                                    if (names.has("zh-CN")) {
+                                        asset.setCountry(names.get("zh-CN").getAsString());
+                                    } else if (names.has("en")) {
+                                        asset.setCountry(names.get("en").getAsString());
+                                    }
                                 }
+                            } else if (geoinfo.get("country").isJsonPrimitive()) {
+                                asset.setCountry(geoinfo.get("country").getAsString());
                             }
                         }
+
+                        // city 可能是对象或字符串
                         if (geoinfo.has("city")) {
-                            JsonObject city = geoinfo.getAsJsonObject("city");
-                            if (city.has("names")) {
-                                JsonObject names = city.getAsJsonObject("names");
-                                if (names.has("zh-CN")) {
-                                    asset.setCity(names.get("zh-CN").getAsString());
+                            if (geoinfo.get("city").isJsonObject()) {
+                                JsonObject city = geoinfo.getAsJsonObject("city");
+                                if (city.has("names")) {
+                                    JsonObject names = city.getAsJsonObject("names");
+                                    if (names.has("zh-CN")) {
+                                        asset.setCity(names.get("zh-CN").getAsString());
+                                    } else if (names.has("en")) {
+                                        asset.setCity(names.get("en").getAsString());
+                                    }
                                 }
+                            } else if (geoinfo.get("city").isJsonPrimitive()) {
+                                asset.setCity(geoinfo.get("city").getAsString());
                             }
                         }
                     }

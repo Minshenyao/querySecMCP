@@ -1,5 +1,6 @@
 package com.querysec.mcp.utils;
 
+import com.querysec.mcp.config.ConfigManager.ProxyConfig;
 import okhttp3.Authenticator;
 import okhttp3.Credentials;
 import okhttp3.OkHttpClient;
@@ -14,6 +15,32 @@ import java.net.URI;
 import java.util.concurrent.TimeUnit;
 
 public class ProxyHelper {
+
+    /**
+     * 从 ProxyConfig 对象创建 OkHttpClient
+     */
+    public static OkHttpClient createClient(ProxyConfig proxyConfig) {
+        if (proxyConfig == null || !proxyConfig.isEnabled()) {
+            return createClient((String) null);
+        }
+
+        // 构造代理 URL
+        StringBuilder proxyUrl = new StringBuilder();
+        proxyUrl.append(proxyConfig.getType()).append("://");
+
+        if (proxyConfig.hasAuth()) {
+            proxyUrl.append(proxyConfig.getUsername())
+                    .append(":")
+                    .append(proxyConfig.getPassword())
+                    .append("@");
+        }
+
+        proxyUrl.append(proxyConfig.getHost())
+                .append(":")
+                .append(proxyConfig.getPort());
+
+        return createClient(proxyUrl.toString());
+    }
 
     /**
      * 从代理 URL 创建 OkHttpClient

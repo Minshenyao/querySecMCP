@@ -19,7 +19,7 @@ public class FOFAEngine implements SearchEngine {
 
     public FOFAEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient(null);
+        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override
@@ -35,15 +35,15 @@ public class FOFAEngine implements SearchEngine {
         try {
             String query = (String) params.get("query");
             String apiKey = (String) params.get("api_key");
-            String email = (String) params.get("email");
             int size = params.containsKey("size") ?
                 ((Number) params.get("size")).intValue() : 100;
 
             // Base64 编码查询
             String encodedQuery = Base64.getEncoder().encodeToString(query.getBytes());
 
-            String url = String.format("%s?email=%s&key=%s&qbase64=%s&size=%d&fields=host,ip,port,protocol,title,country,city,domain",
-                    API_URL, email, apiKey, encodedQuery, size);
+            // FOFA API 已弃用 email 参数，只需要 key
+            String url = String.format("%s?key=%s&qbase64=%s&size=%d&fields=host,ip,port,protocol,title,country,city,domain",
+                    API_URL, apiKey, encodedQuery, size);
 
             Request request = new Request.Builder()
                     .url(url)
