@@ -1,19 +1,19 @@
 {
   "apis": {
     "fofa": {
-      "key": "your-fofa-api-key"
+      "apiKey": "your-fofa-api-key"
     },
     "shodan": {
-      "key": "your-shodan-api-key"
+      "apiKey": "your-shodan-api-key"
     },
     "quake": {
-      "key": "your-quake-api-key"
+      "apiKey": "your-quake-api-key"
     },
     "hunter": {
-      "key": "your-hunter-api-key"
+      "apiKey": "your-hunter-api-key"
     },
     "zoomeye": {
-      "key": "your-zoomeye-api-key"
+      "apiKey": "your-zoomeye-api-key"
     }
   },
   "proxy": "http://127.0.0.1:7890"

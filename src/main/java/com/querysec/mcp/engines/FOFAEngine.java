@@ -6,10 +6,12 @@ import com.google.gson.JsonObject;
 import com.querysec.mcp.model.Asset;
 import com.querysec.mcp.model.SearchResult;
 import com.querysec.mcp.utils.ProxyHelper;
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class FOFAEngine implements SearchEngine {
@@ -39,11 +41,14 @@ public class FOFAEngine implements SearchEngine {
                 ((Number) params.get("size")).intValue() : 100;
 
             // Base64 编码查询
-            String encodedQuery = Base64.getEncoder().encodeToString(query.getBytes());
+            String encodedQuery = Base64.getEncoder().encodeToString(query.getBytes(StandardCharsets.UTF_8));
 
-            // FOFA API 已弃用 email 参数，只需要 key
-            String url = String.format("%s?key=%s&qbase64=%s&size=%d&fields=host,ip,port,protocol,title,country,city,domain",
-                    API_URL, apiKey, encodedQuery, size);
+            HttpUrl url = Objects.requireNonNull(HttpUrl.parse(API_URL)).newBuilder()
+                    .addQueryParameter("key", apiKey)
+                    .addQueryParameter("qbase64", encodedQuery)
+                    .addQueryParameter("size", String.valueOf(size))
+                    .addQueryParameter("fields", "host,ip,port,protocol,title,country,city,domain")
+                    .build();
 
             Request request = new Request.Builder()
                     .url(url)

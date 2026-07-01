@@ -220,10 +220,9 @@ public class MCPServer {
             "Search assets using FOFA search engine",
             Map.of(
                 "query", Map.of("type", "string", "description", "FOFA query syntax"),
-                "api_key", Map.of("type", "string", "description", "FOFA API key"),
                 "size", Map.of("type", "number", "description", "Number of results (default: 100)")
             ),
-            List.of("query", "api_key")
+            List.of("query")
         ));
 
         // Shodan
@@ -232,10 +231,9 @@ public class MCPServer {
             "Search assets using Shodan search engine",
             Map.of(
                 "query", Map.of("type", "string", "description", "Shodan query syntax"),
-                "api_key", Map.of("type", "string", "description", "Shodan API key"),
                 "page", Map.of("type", "number", "description", "Page number (default: 1)")
             ),
-            List.of("query", "api_key")
+            List.of("query")
         ));
 
         // Quake
@@ -244,10 +242,9 @@ public class MCPServer {
             "Search assets using Quake 360 search engine",
             Map.of(
                 "query", Map.of("type", "string", "description", "Quake query syntax"),
-                "api_key", Map.of("type", "string", "description", "Quake API key"),
                 "size", Map.of("type", "number", "description", "Number of results (default: 10)")
             ),
-            List.of("query", "api_key")
+            List.of("query")
         ));
 
         // Hunter
@@ -256,11 +253,10 @@ public class MCPServer {
             "Search assets using Hunter search engine",
             Map.of(
                 "query", Map.of("type", "string", "description", "Hunter query syntax"),
-                "api_key", Map.of("type", "string", "description", "Hunter API key"),
                 "page", Map.of("type", "number", "description", "Page number (default: 1)"),
                 "page_size", Map.of("type", "number", "description", "Page size (default: 10)")
             ),
-            List.of("query", "api_key")
+            List.of("query")
         ));
 
         // ZoomEye
@@ -269,11 +265,10 @@ public class MCPServer {
             "Search assets using ZoomEye search engine",
             Map.of(
                 "query", Map.of("type", "string", "description", "ZoomEye query syntax"),
-                "api_key", Map.of("type", "string", "description", "ZoomEye API key"),
                 "type", Map.of("type", "string", "description", "Search type: host or web (default: host)"),
                 "page", Map.of("type", "number", "description", "Page number (default: 1)")
             ),
-            List.of("query", "api_key")
+            List.of("query")
         ));
 
         return Map.of("tools", tools);
@@ -294,13 +289,26 @@ public class MCPServer {
     }
 
     private Map<String, Object> handleToolsCall(Map<String, Object> params) {
-        String toolName = (String) params.get("name");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> arguments = (Map<String, Object>) params.get("arguments");
-
         try {
-            // 从配置文件自动填充 API Key
+            if (params == null) {
+                throw new IllegalArgumentException("Missing tool call params");
+            }
+
+            String toolName = (String) params.get("name");
+            if (toolName == null || toolName.isBlank()) {
+                throw new IllegalArgumentException("Missing tool name");
+            }
+
+            String engineName = getEngineName(toolName);
+            if (engineName == null) {
+                throw new IllegalArgumentException("Unknown tool: " + toolName);
+            }
+
+            Map<String, Object> arguments = normalizeArguments(params.get("arguments"));
+
+            // API Key 只允许来自本地配置文件，不接受 MCP 调用参数。
             arguments = fillApiKeyFromConfig(toolName, arguments);
+            validateSearchArguments(engineName, arguments);
 
             SearchResult searchResult;
             switch (toolName) {
@@ -348,39 +356,70 @@ public class MCPServer {
         }
     }
 
+    private Map<String, Object> normalizeArguments(Object rawArguments) {
+        Map<String, Object> arguments = new HashMap<>();
+        if (rawArguments == null) {
+            return arguments;
+        }
+        if (!(rawArguments instanceof Map<?, ?> rawMap)) {
+            throw new IllegalArgumentException("Tool arguments must be an object");
+        }
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            if (entry.getKey() != null) {
+                arguments.put(String.valueOf(entry.getKey()), entry.getValue());
+            }
+        }
+        return arguments;
+    }
+
+    private void validateSearchArguments(String engineName, Map<String, Object> arguments) {
+        if (isBlankValue(arguments.get("query"))) {
+            throw new IllegalArgumentException("Missing required parameter: query");
+        }
+        if (isMissingApiKey(arguments.get("api_key"))) {
+            throw new IllegalArgumentException("Missing API key for " + engineName
+                    + ". Configure it in " + configManager.getConfigFilePath());
+        }
+    }
+
     /**
-     * 从配置文件自动填充 API Key
+     * 从配置文件填充 API Key。调用参数中的 api_key 会被忽略，避免 MCP 客户端接触密钥。
      */
     private Map<String, Object> fillApiKeyFromConfig(String toolName, Map<String, Object> arguments) {
         Map<String, Object> result = new HashMap<>(arguments);
+        result.remove("api_key");
 
-        // 如果用户没有提供 api_key，从配置文件读取
-        if (!result.containsKey("api_key") || "placeholder".equals(result.get("api_key"))) {
-            String engineName = null;
-            switch (toolName) {
-                case "fofa_search":
-                    engineName = "fofa";
-                    break;
-                case "shodan_search":
-                    engineName = "shodan";
-                    break;
-                case "quake_search":
-                    engineName = "quake";
-                    break;
-                case "hunter_search":
-                    engineName = "hunter";
-                    break;
-                case "zoomeye_search":
-                    engineName = "zoomeye";
-                    break;
-            }
-
-            if (engineName != null && configManager.hasValidConfig(engineName)) {
-                result.put("api_key", configManager.getAPIKey(engineName));
-            }
+        String engineName = getEngineName(toolName);
+        if (engineName != null && configManager.hasValidConfig(engineName)) {
+            result.put("api_key", configManager.getAPIKey(engineName));
         }
 
         return result;
+    }
+
+    private String getEngineName(String toolName) {
+        switch (toolName) {
+            case "fofa_search":
+                return "fofa";
+            case "shodan_search":
+                return "shodan";
+            case "quake_search":
+                return "quake";
+            case "hunter_search":
+                return "hunter";
+            case "zoomeye_search":
+                return "zoomeye";
+            default:
+                return null;
+        }
+    }
+
+    private boolean isBlankValue(Object value) {
+        return value == null || String.valueOf(value).isBlank();
+    }
+
+    private boolean isMissingApiKey(Object value) {
+        return isBlankValue(value) || "placeholder".equalsIgnoreCase(String.valueOf(value));
     }
 
     private String formatSearchResult(SearchResult result) {

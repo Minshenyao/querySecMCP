@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.querysec.mcp.model.Asset;
 import com.querysec.mcp.model.SearchResult;
 import com.querysec.mcp.utils.ProxyHelper;
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -38,8 +39,11 @@ public class ShodanEngine implements SearchEngine {
             int page = params.containsKey("page") ?
                 ((Number) params.get("page")).intValue() : 1;
 
-            String url = String.format("%s?key=%s&query=%s&page=%d",
-                    API_URL, apiKey, query, page);
+            HttpUrl url = Objects.requireNonNull(HttpUrl.parse(API_URL)).newBuilder()
+                    .addQueryParameter("key", apiKey)
+                    .addQueryParameter("query", query)
+                    .addQueryParameter("page", String.valueOf(page))
+                    .build();
 
             Request request = new Request.Builder()
                     .url(url)

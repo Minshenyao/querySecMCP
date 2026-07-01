@@ -8,6 +8,7 @@ import com.querysec.mcp.model.SearchResult;
 import com.querysec.mcp.utils.ProxyHelper;
 import okhttp3.*;
 
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.Base64;
 
@@ -47,10 +48,14 @@ public class HunterEngine implements SearchEngine {
             }
 
             // Hunter API 要求 search 参数使用 Base64 编码
-            String encodedQuery = Base64.getEncoder().encodeToString(query.getBytes());
+            String encodedQuery = Base64.getEncoder().encodeToString(query.getBytes(StandardCharsets.UTF_8));
 
-            String url = String.format("%s?api-key=%s&search=%s&page=%d&page_size=%d",
-                    API_URL, apiKey, encodedQuery, page, pageSize);
+            HttpUrl url = Objects.requireNonNull(HttpUrl.parse(API_URL)).newBuilder()
+                    .addQueryParameter("api-key", apiKey)
+                    .addQueryParameter("search", encodedQuery)
+                    .addQueryParameter("page", String.valueOf(page))
+                    .addQueryParameter("page_size", String.valueOf(pageSize))
+                    .build();
 
             Request request = new Request.Builder()
                     .url(url)

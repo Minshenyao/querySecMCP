@@ -6,6 +6,7 @@ import com.google.gson.JsonObject;
 import com.querysec.mcp.model.Asset;
 import com.querysec.mcp.model.SearchResult;
 import com.querysec.mcp.utils.ProxyHelper;
+import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -42,8 +43,11 @@ public class ZoomEyeEngine implements SearchEngine {
             String type = params.containsKey("type") ?
                 (String) params.get("type") : "host";
 
-            String apiUrl = "host".equals(type) ? API_URL_HOST : API_URL_WEB;
-            String url = String.format("%s?query=%s&page=%d", apiUrl, query, page);
+            String apiUrl = "web".equalsIgnoreCase(type) ? API_URL_WEB : API_URL_HOST;
+            HttpUrl url = Objects.requireNonNull(HttpUrl.parse(apiUrl)).newBuilder()
+                    .addQueryParameter("query", query)
+                    .addQueryParameter("page", String.valueOf(page))
+                    .build();
 
             Request request = new Request.Builder()
                     .url(url)

@@ -39,19 +39,19 @@ mvn clean package
 {
   "apis": {
     "fofa": {
-      "key": "your-fofa-api-key"
+      "apiKey": "your-fofa-api-key"
     },
     "shodan": {
-      "key": "your-shodan-api-key"
+      "apiKey": "your-shodan-api-key"
     },
     "quake": {
-      "key": "your-quake-api-key"
+      "apiKey": "your-quake-api-key"
     },
     "hunter": {
-      "key": "your-hunter-api-key"
+      "apiKey": "your-hunter-api-key"
     },
     "zoomeye": {
-      "key": "your-zoomeye-api-key"
+      "apiKey": "your-zoomeye-api-key"
     }
   },
   "proxy": "http://127.0.0.1:7890"
@@ -59,6 +59,7 @@ mvn clean package
 ```
 
 > **提示**：`proxy` 字段可选，不需要代理可删除。只配置你需要使用的搜索引擎。
+> **安全说明**：API Key 只从本地配置文件读取，MCP 工具调用不接受 `api_key` 参数。
 
 ### 2. 配置 AI 工具
 
@@ -118,11 +119,11 @@ args = ["-y", "supergateway", "--sse", "http://127.0.0.1:23389"]
 
 | 工具 | 说明 | 必需参数 |
 |------|------|----------|
-| `fofa_search` | FOFA 资产搜索 | `query`, `api_key` |
-| `shodan_search` | Shodan 主机搜索 | `query`, `api_key` |
-| `quake_search` | Quake 360 搜索 | `query`, `api_key` |
-| `hunter_search` | Hunter 域名搜索 | `query`, `api_key` |
-| `zoomeye_search` | ZoomEye 网络空间搜索 | `query`, `api_key` |
+| `fofa_search` | FOFA 资产搜索 | `query` |
+| `shodan_search` | Shodan 主机搜索 | `query` |
+| `quake_search` | Quake 360 搜索 | `query` |
+| `hunter_search` | Hunter 域名搜索 | `query` |
+| `zoomeye_search` | ZoomEye 网络空间搜索 | `query` |
 
 ---
 

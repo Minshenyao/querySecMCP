@@ -2,6 +2,7 @@ package com.querysec.mcp.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.annotations.SerializedName;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -167,6 +168,7 @@ public class ConfigManager {
 
     public static class APIConfig {
         String name;
+        @SerializedName(value = "apiKey", alternate = {"key"})
         String apiKey;
         String email;
         String registerUrl;
