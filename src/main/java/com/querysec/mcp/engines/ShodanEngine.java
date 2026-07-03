@@ -75,14 +75,22 @@ public class ShodanEngine implements SearchEngine {
                     JsonObject match = matches.get(i).getAsJsonObject();
                     Asset asset = new Asset();
 
-                    asset.setIp(match.get("ip_str").getAsString());
-                    asset.setPort(match.get("port").getAsInt());
+                    // 必填字段
+                    if (match.has("ip_str") && !match.get("ip_str").isJsonNull()) {
+                        asset.setIp(match.get("ip_str").getAsString());
+                    }
+                    if (match.has("port") && !match.get("port").isJsonNull()) {
+                        asset.setPort(match.get("port").getAsInt());
+                    }
 
-                    if (match.has("hostnames")) {
+                    // 可选字段：hostnames
+                    if (match.has("hostnames") && !match.get("hostnames").isJsonNull()) {
                         JsonArray hostnames = match.getAsJsonArray("hostnames");
                         List<String> domains = new ArrayList<>();
                         for (int j = 0; j < hostnames.size(); j++) {
-                            domains.add(hostnames.get(j).getAsString());
+                            if (!hostnames.get(j).isJsonNull()) {
+                                domains.add(hostnames.get(j).getAsString());
+                            }
                         }
                         asset.setDomains(domains);
                         if (!domains.isEmpty()) {
@@ -90,32 +98,38 @@ public class ShodanEngine implements SearchEngine {
                         }
                     }
 
-                    if (match.has("transport")) {
+                    // 可选字段：transport
+                    if (match.has("transport") && !match.get("transport").isJsonNull()) {
                         asset.setProtocol(match.get("transport").getAsString());
                     }
 
-                    if (match.has("data")) {
+                    // 可选字段：data（banner）
+                    if (match.has("data") && !match.get("data").isJsonNull()) {
                         asset.setBanner(match.get("data").getAsString());
                     }
 
-                    if (match.has("location")) {
+                    // 可选字段：location
+                    if (match.has("location") && !match.get("location").isJsonNull()) {
                         JsonObject location = match.getAsJsonObject("location");
-                        if (location.has("country_name")) {
+                        if (location.has("country_name") && !location.get("country_name").isJsonNull()) {
                             asset.setCountry(location.get("country_name").getAsString());
                         }
-                        if (location.has("city")) {
+                        if (location.has("city") && !location.get("city").isJsonNull()) {
                             asset.setCity(location.get("city").getAsString());
                         }
                     }
 
+                    // 可选字段：org 和 isp
                     Map<String, Object> extra = new HashMap<>();
-                    if (match.has("org")) {
+                    if (match.has("org") && !match.get("org").isJsonNull()) {
                         extra.put("org", match.get("org").getAsString());
                     }
-                    if (match.has("isp")) {
+                    if (match.has("isp") && !match.get("isp").isJsonNull()) {
                         extra.put("isp", match.get("isp").getAsString());
                     }
-                    asset.setExtra(extra);
+                    if (!extra.isEmpty()) {
+                        asset.setExtra(extra);
+                    }
 
                     assets.add(asset);
                 }
