@@ -55,3 +55,4 @@ burp-*.jar
 
 # Claude Code
 CLAUDE.md
+.claude/
