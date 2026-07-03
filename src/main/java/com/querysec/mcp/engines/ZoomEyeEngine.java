@@ -3,31 +3,34 @@ package com.querysec.mcp.engines;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
+import com.querysec.mcp.common.Constants;
+import com.querysec.mcp.exception.SearchEngineException;
 import com.querysec.mcp.model.Asset;
 import com.querysec.mcp.model.SearchResult;
-import com.querysec.mcp.utils.ProxyHelper;
+import com.querysec.mcp.utils.HttpClientFactory;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
+import java.io.IOException;
 import java.util.*;
 
 public class ZoomEyeEngine implements SearchEngine {
     // 使用中国区 API
     private static final String API_URL_HOST = "https://api.zoomeye.org/host/search";
     private static final String API_URL_WEB = "https://api.zoomeye.org/web/search";
-    private OkHttpClient client;
     private final Gson gson;
+    private String proxyUrl;
 
     public ZoomEyeEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override
     public void setProxy(String proxyUrl) {
-        this.client = ProxyHelper.createClient(proxyUrl);
+        this.proxyUrl = proxyUrl;
     }
 
     @Override
@@ -36,12 +39,12 @@ public class ZoomEyeEngine implements SearchEngine {
         result.setEngine("ZoomEye");
 
         try {
-            String query = (String) params.get("query");
-            String apiKey = (String) params.get("api_key");
-            int page = params.containsKey("page") ?
-                ((Number) params.get("page")).intValue() : 1;
-            String type = params.containsKey("type") ?
-                (String) params.get("type") : "host";
+            String query = (String) params.get(Constants.PARAM_QUERY);
+            String apiKey = (String) params.get(Constants.PARAM_API_KEY);
+            int page = params.containsKey(Constants.PARAM_PAGE) ?
+                ((Number) params.get(Constants.PARAM_PAGE)).intValue() : Constants.DEFAULT_PAGE;
+            String type = params.containsKey(Constants.PARAM_TYPE) ?
+                (String) params.get(Constants.PARAM_TYPE) : "host";
 
             String apiUrl = "web".equalsIgnoreCase(type) ? API_URL_WEB : API_URL_HOST;
             HttpUrl url = Objects.requireNonNull(HttpUrl.parse(apiUrl)).newBuilder()
@@ -55,10 +58,13 @@ public class ZoomEyeEngine implements SearchEngine {
                     .addHeader("API-KEY", apiKey)
                     .build();
 
+            OkHttpClient client = proxyUrl != null ?
+                HttpClientFactory.getProxyClient(proxyUrl) :
+                HttpClientFactory.getDefaultClient();
+
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    result.setError("ZoomEye API error: " + response.code());
-                    return result;
+                    throw new SearchEngineException("ZoomEye", response.code(), getHttpErrorMessage(response.code()));
                 }
 
                 String body = response.body().string();
@@ -145,10 +151,26 @@ public class ZoomEyeEngine implements SearchEngine {
 
                 result.setAssets(assets);
             }
+        } catch (SearchEngineException e) {
+            result.setError(e.getUserFriendlyMessage());
+        } catch (IOException e) {
+            result.setError("ZoomEye network error: " + e.getMessage());
+        } catch (JsonSyntaxException e) {
+            result.setError("ZoomEye invalid response format");
         } catch (Exception e) {
-            result.setError("ZoomEye search failed: " + e.getMessage());
+            result.setError("ZoomEye unexpected error: " + e.getMessage());
         }
 
         return result;
+    }
+
+    private String getHttpErrorMessage(int code) {
+        switch (code) {
+            case 401: return "Invalid API key";
+            case 403: return "API access denied or insufficient credit";
+            case 429: return "Rate limit exceeded";
+            case 500: return "API server error";
+            default: return "HTTP error " + code;
+        }
     }
 }

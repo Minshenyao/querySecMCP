@@ -1,9 +1,7 @@
 package com.querysec.mcp.utils;
 
-import com.querysec.mcp.config.ConfigManager.ProxyConfig;
 import okhttp3.Authenticator;
 import okhttp3.Credentials;
-import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.Route;
@@ -12,78 +10,57 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.URI;
-import java.util.concurrent.TimeUnit;
 
+/**
+ * 代理工具类 - 只保留解析功能，HTTP 客户端创建交给 HttpClientFactory
+ */
 public class ProxyHelper {
 
     /**
-     * 从 ProxyConfig 对象创建 OkHttpClient
-     */
-    public static OkHttpClient createClient(ProxyConfig proxyConfig) {
-        if (proxyConfig == null || !proxyConfig.isEnabled()) {
-            return createClient((String) null);
-        }
-
-        // 构造代理 URL
-        StringBuilder proxyUrl = new StringBuilder();
-        proxyUrl.append(proxyConfig.getType()).append("://");
-
-        if (proxyConfig.hasAuth()) {
-            proxyUrl.append(proxyConfig.getUsername())
-                    .append(":")
-                    .append(proxyConfig.getPassword())
-                    .append("@");
-        }
-
-        proxyUrl.append(proxyConfig.getHost())
-                .append(":")
-                .append(proxyConfig.getPort());
-
-        return createClient(proxyUrl.toString());
-    }
-
-    /**
-     * 从代理 URL 创建 OkHttpClient
+     * 解析代理 URL 并返回 Proxy 对象
      * 支持格式:
      *   - http://127.0.0.1:7890
      *   - socks5://127.0.0.1:7890
      *   - http://user:pass@proxy.example.com:8080
      */
-    public static OkHttpClient createClient(String proxyUrl) {
-        OkHttpClient.Builder builder = new OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS);
-
-        // 如果启用代理
-        if (proxyUrl != null && !proxyUrl.isEmpty()) {
-            try {
-                ProxyInfo proxyInfo = parseProxyUrl(proxyUrl);
-                if (proxyInfo != null) {
-                    builder.proxy(proxyInfo.proxy);
-
-                    // 如果有认证信息
-                    if (proxyInfo.username != null && proxyInfo.password != null) {
-                        builder.proxyAuthenticator(new Authenticator() {
-                            @Override
-                            public Request authenticate(Route route, Response response) throws IOException {
-                                String credential = Credentials.basic(
-                                        proxyInfo.username,
-                                        proxyInfo.password
-                                );
-                                return response.request().newBuilder()
-                                        .header("Proxy-Authorization", credential)
-                                        .build();
-                            }
-                        });
-                    }
-                }
-            } catch (Exception e) {
-                System.err.println("Failed to parse proxy URL: " + proxyUrl + " - " + e.getMessage());
-            }
+    public static Proxy parseProxy(String proxyUrl) {
+        if (proxyUrl == null || proxyUrl.isEmpty()) {
+            return null;
         }
 
-        return builder.build();
+        try {
+            ProxyInfo proxyInfo = parseProxyUrl(proxyUrl);
+            return proxyInfo != null ? proxyInfo.proxy : null;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid proxy URL: " + proxyUrl, e);
+        }
+    }
+
+    /**
+     * 创建代理认证器（如果需要认证）
+     */
+    public static Authenticator createProxyAuthenticator(String proxyUrl) {
+        if (proxyUrl == null || proxyUrl.isEmpty()) {
+            return null;
+        }
+
+        try {
+            ProxyInfo proxyInfo = parseProxyUrl(proxyUrl);
+            if (proxyInfo != null && proxyInfo.username != null && proxyInfo.password != null) {
+                return new Authenticator() {
+                    @Override
+                    public Request authenticate(Route route, Response response) throws IOException {
+                        String credential = Credentials.basic(proxyInfo.username, proxyInfo.password);
+                        return response.request().newBuilder()
+                                .header("Proxy-Authorization", credential)
+                                .build();
+                    }
+                };
+            }
+        } catch (Exception e) {
+            // 忽略解析错误
+        }
+        return null;
     }
 
     /**
@@ -93,7 +70,7 @@ public class ProxyHelper {
      *   - socks5://127.0.0.1:7890
      *   - http://user:pass@proxy.example.com:8080
      */
-    private static ProxyInfo parseProxyUrl(String proxyUrl) {
+    static ProxyInfo parseProxyUrl(String proxyUrl) {
         try {
             URI uri = new URI(proxyUrl);
 
@@ -142,12 +119,11 @@ public class ProxyHelper {
 
             return new ProxyInfo(proxy, username, password);
         } catch (Exception e) {
-            System.err.println("Invalid proxy URL: " + proxyUrl + " - " + e.getMessage());
-            return null;
+            throw new IllegalArgumentException("Invalid proxy URL: " + proxyUrl, e);
         }
     }
 
-    private static class ProxyInfo {
+    static class ProxyInfo {
         Proxy proxy;
         String username;
         String password;

@@ -3,26 +3,29 @@ package com.querysec.mcp.engines;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
+import com.querysec.mcp.common.Constants;
+import com.querysec.mcp.exception.SearchEngineException;
 import com.querysec.mcp.model.Asset;
 import com.querysec.mcp.model.SearchResult;
-import com.querysec.mcp.utils.ProxyHelper;
+import com.querysec.mcp.utils.HttpClientFactory;
 import okhttp3.*;
 
+import java.io.IOException;
 import java.util.*;
 
 public class QuakeEngine implements SearchEngine {
     private static final String API_URL = "https://quake.360.net/api/v3/search/quake_service";
-    private OkHttpClient client;
     private final Gson gson;
+    private String proxyUrl;
 
     public QuakeEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override
     public void setProxy(String proxyUrl) {
-        this.client = ProxyHelper.createClient(proxyUrl);
+        this.proxyUrl = proxyUrl;
     }
 
     @Override
@@ -31,10 +34,10 @@ public class QuakeEngine implements SearchEngine {
         result.setEngine("Quake");
 
         try {
-            String query = (String) params.get("query");
-            String apiKey = (String) params.get("api_key");
-            int size = params.containsKey("size") ?
-                ((Number) params.get("size")).intValue() : 10;
+            String query = (String) params.get(Constants.PARAM_QUERY);
+            String apiKey = (String) params.get(Constants.PARAM_API_KEY);
+            int size = params.containsKey(Constants.PARAM_SIZE) ?
+                ((Number) params.get(Constants.PARAM_SIZE)).intValue() : Constants.DEFAULT_QUAKE_SIZE;
 
             // 构造请求 JSON
             JsonObject requestBody = new JsonObject();
@@ -53,10 +56,13 @@ public class QuakeEngine implements SearchEngine {
                     .addHeader("Content-Type", "application/json")
                     .build();
 
+            OkHttpClient client = proxyUrl != null ?
+                HttpClientFactory.getProxyClient(proxyUrl) :
+                HttpClientFactory.getDefaultClient();
+
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    result.setError("Quake API error: " + response.code());
-                    return result;
+                    throw new SearchEngineException("Quake", response.code(), getHttpErrorMessage(response.code()));
                 }
 
                 String responseBody = response.body().string();
@@ -139,13 +145,29 @@ public class QuakeEngine implements SearchEngine {
                 } else {
                     String message = jsonResponse.has("message") ?
                             jsonResponse.get("message").getAsString() : "Unknown error";
-                    result.setError(message);
+                    throw new SearchEngineException("Quake", message);
                 }
             }
+        } catch (SearchEngineException e) {
+            result.setError(e.getUserFriendlyMessage());
+        } catch (IOException e) {
+            result.setError("Quake network error: " + e.getMessage());
+        } catch (JsonSyntaxException e) {
+            result.setError("Quake invalid response format");
         } catch (Exception e) {
-            result.setError("Quake search failed: " + e.getMessage());
+            result.setError("Quake unexpected error: " + e.getMessage());
         }
 
         return result;
+    }
+
+    private String getHttpErrorMessage(int code) {
+        switch (code) {
+            case 401: return "Invalid API key";
+            case 403: return "API access denied or insufficient credit";
+            case 429: return "Rate limit exceeded";
+            case 500: return "API server error";
+            default: return "HTTP error " + code;
+        }
     }
 }

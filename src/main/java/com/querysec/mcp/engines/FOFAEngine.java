@@ -3,30 +3,33 @@ package com.querysec.mcp.engines;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
+import com.querysec.mcp.common.Constants;
+import com.querysec.mcp.exception.SearchEngineException;
 import com.querysec.mcp.model.Asset;
 import com.querysec.mcp.model.SearchResult;
-import com.querysec.mcp.utils.ProxyHelper;
+import com.querysec.mcp.utils.HttpClientFactory;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
 public class FOFAEngine implements SearchEngine {
     private static final String API_URL = "https://fofa.info/api/v1/search/all";
-    private OkHttpClient client;
     private final Gson gson;
+    private String proxyUrl;
 
     public FOFAEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override
     public void setProxy(String proxyUrl) {
-        this.client = ProxyHelper.createClient(proxyUrl);
+        this.proxyUrl = proxyUrl;
     }
 
     @Override
@@ -35,10 +38,10 @@ public class FOFAEngine implements SearchEngine {
         result.setEngine("FOFA");
 
         try {
-            String query = (String) params.get("query");
-            String apiKey = (String) params.get("api_key");
-            int size = params.containsKey("size") ?
-                ((Number) params.get("size")).intValue() : 100;
+            String query = (String) params.get(Constants.PARAM_QUERY);
+            String apiKey = (String) params.get(Constants.PARAM_API_KEY);
+            int size = params.containsKey(Constants.PARAM_SIZE) ?
+                ((Number) params.get(Constants.PARAM_SIZE)).intValue() : Constants.DEFAULT_FOFA_SIZE;
 
             // Base64 编码查询
             String encodedQuery = Base64.getEncoder().encodeToString(query.getBytes(StandardCharsets.UTF_8));
@@ -55,10 +58,13 @@ public class FOFAEngine implements SearchEngine {
                     .get()
                     .build();
 
+            OkHttpClient client = proxyUrl != null ?
+                HttpClientFactory.getProxyClient(proxyUrl) :
+                HttpClientFactory.getDefaultClient();
+
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    result.setError("FOFA API error: " + response.code());
-                    return result;
+                    throw new SearchEngineException("FOFA", response.code(), getHttpErrorMessage(response.code()));
                 }
 
                 String body = response.body().string();
@@ -92,13 +98,29 @@ public class FOFAEngine implements SearchEngine {
 
                     result.setAssets(assets);
                 } else {
-                    result.setError(jsonResponse.get("errmsg").getAsString());
+                    throw new SearchEngineException("FOFA", jsonResponse.get("errmsg").getAsString());
                 }
             }
+        } catch (SearchEngineException e) {
+            result.setError(e.getUserFriendlyMessage());
+        } catch (IOException e) {
+            result.setError("FOFA network error: " + e.getMessage());
+        } catch (JsonSyntaxException e) {
+            result.setError("FOFA invalid response format");
         } catch (Exception e) {
-            result.setError("FOFA search failed: " + e.getMessage());
+            result.setError("FOFA unexpected error: " + e.getMessage());
         }
 
         return result;
+    }
+
+    private String getHttpErrorMessage(int code) {
+        switch (code) {
+            case 401: return "Invalid API key";
+            case 403: return "API access denied";
+            case 429: return "Rate limit exceeded";
+            case 500: return "API server error";
+            default: return "HTTP error " + code;
+        }
     }
 }

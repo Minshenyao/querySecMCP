@@ -52,3 +52,6 @@ replay_pid*
 
 # Burp Suite
 burp-*.jar
+
+# Claude Code
+CLAUDE.md

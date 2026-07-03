@@ -3,29 +3,32 @@ package com.querysec.mcp.engines;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
+import com.querysec.mcp.common.Constants;
+import com.querysec.mcp.exception.SearchEngineException;
 import com.querysec.mcp.model.Asset;
 import com.querysec.mcp.model.SearchResult;
-import com.querysec.mcp.utils.ProxyHelper;
+import com.querysec.mcp.utils.HttpClientFactory;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
+import java.io.IOException;
 import java.util.*;
 
 public class ShodanEngine implements SearchEngine {
     private static final String API_URL = "https://api.shodan.io/shodan/host/search";
-    private OkHttpClient client;
     private final Gson gson;
+    private String proxyUrl;
 
     public ShodanEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override
     public void setProxy(String proxyUrl) {
-        this.client = ProxyHelper.createClient(proxyUrl);
+        this.proxyUrl = proxyUrl;
     }
 
     @Override
@@ -34,10 +37,10 @@ public class ShodanEngine implements SearchEngine {
         result.setEngine("Shodan");
 
         try {
-            String query = (String) params.get("query");
-            String apiKey = (String) params.get("api_key");
-            int page = params.containsKey("page") ?
-                ((Number) params.get("page")).intValue() : 1;
+            String query = (String) params.get(Constants.PARAM_QUERY);
+            String apiKey = (String) params.get(Constants.PARAM_API_KEY);
+            int page = params.containsKey(Constants.PARAM_PAGE) ?
+                ((Number) params.get(Constants.PARAM_PAGE)).intValue() : Constants.DEFAULT_PAGE;
 
             HttpUrl url = Objects.requireNonNull(HttpUrl.parse(API_URL)).newBuilder()
                     .addQueryParameter("key", apiKey)
@@ -50,10 +53,13 @@ public class ShodanEngine implements SearchEngine {
                     .get()
                     .build();
 
+            OkHttpClient client = proxyUrl != null ?
+                HttpClientFactory.getProxyClient(proxyUrl) :
+                HttpClientFactory.getDefaultClient();
+
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    result.setError("Shodan API error: " + response.code());
-                    return result;
+                    throw new SearchEngineException("Shodan", response.code(), getHttpErrorMessage(response.code()));
                 }
 
                 String body = response.body().string();
@@ -116,10 +122,26 @@ public class ShodanEngine implements SearchEngine {
 
                 result.setAssets(assets);
             }
+        } catch (SearchEngineException e) {
+            result.setError(e.getUserFriendlyMessage());
+        } catch (IOException e) {
+            result.setError("Shodan network error: " + e.getMessage());
+        } catch (JsonSyntaxException e) {
+            result.setError("Shodan invalid response format");
         } catch (Exception e) {
-            result.setError("Shodan search failed: " + e.getMessage());
+            result.setError("Shodan unexpected error: " + e.getMessage());
         }
 
         return result;
+    }
+
+    private String getHttpErrorMessage(int code) {
+        switch (code) {
+            case 401: return "Invalid API key";
+            case 403: return "API access denied";
+            case 429: return "Rate limit exceeded";
+            case 500: return "API server error";
+            default: return "HTTP error " + code;
+        }
     }
 }

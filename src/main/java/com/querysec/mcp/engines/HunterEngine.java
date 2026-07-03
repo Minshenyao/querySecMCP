@@ -3,28 +3,30 @@ package com.querysec.mcp.engines;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonSyntaxException;
+import com.querysec.mcp.common.Constants;
+import com.querysec.mcp.exception.SearchEngineException;
 import com.querysec.mcp.model.Asset;
 import com.querysec.mcp.model.SearchResult;
-import com.querysec.mcp.utils.ProxyHelper;
+import com.querysec.mcp.utils.HttpClientFactory;
 import okhttp3.*;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.Base64;
 
 public class HunterEngine implements SearchEngine {
     private static final String API_URL = "https://hunter.qianxin.com/openApi/search";
-    private OkHttpClient client;
     private final Gson gson;
+    private String proxyUrl;
 
     public HunterEngine() {
         this.gson = new Gson();
-        this.client = ProxyHelper.createClient((String) null);
     }
 
     @Override
     public void setProxy(String proxyUrl) {
-        this.client = ProxyHelper.createClient(proxyUrl);
+        this.proxyUrl = proxyUrl;
     }
 
     @Override
@@ -33,12 +35,12 @@ public class HunterEngine implements SearchEngine {
         result.setEngine("Hunter");
 
         try {
-            String query = (String) params.get("query");
-            String apiKey = (String) params.get("api_key");
-            int page = params.containsKey("page") ?
-                ((Number) params.get("page")).intValue() : 1;
-            int pageSize = params.containsKey("page_size") ?
-                ((Number) params.get("page_size")).intValue() : 10;
+            String query = (String) params.get(Constants.PARAM_QUERY);
+            String apiKey = (String) params.get(Constants.PARAM_API_KEY);
+            int page = params.containsKey(Constants.PARAM_PAGE) ?
+                ((Number) params.get(Constants.PARAM_PAGE)).intValue() : Constants.DEFAULT_PAGE;
+            int pageSize = params.containsKey(Constants.PARAM_PAGE_SIZE) ?
+                ((Number) params.get(Constants.PARAM_PAGE_SIZE)).intValue() : Constants.DEFAULT_HUNTER_PAGE_SIZE;
 
             // Hunter API 要求 page_size 在 10-100 之间
             if (pageSize < 10) {
@@ -62,10 +64,13 @@ public class HunterEngine implements SearchEngine {
                     .get()
                     .build();
 
+            OkHttpClient client = proxyUrl != null ?
+                HttpClientFactory.getProxyClient(proxyUrl) :
+                HttpClientFactory.getDefaultClient();
+
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    result.setError("Hunter API error: " + response.code());
-                    return result;
+                    throw new SearchEngineException("Hunter", response.code(), getHttpErrorMessage(response.code()));
                 }
 
                 String body = response.body().string();
@@ -133,13 +138,29 @@ public class HunterEngine implements SearchEngine {
                 } else {
                     String message = jsonResponse.has("message") ?
                             jsonResponse.get("message").getAsString() : "Unknown error";
-                    result.setError(message);
+                    throw new SearchEngineException("Hunter", message);
                 }
             }
+        } catch (SearchEngineException e) {
+            result.setError(e.getUserFriendlyMessage());
+        } catch (IOException e) {
+            result.setError("Hunter network error: " + e.getMessage());
+        } catch (JsonSyntaxException e) {
+            result.setError("Hunter invalid response format");
         } catch (Exception e) {
-            result.setError("Hunter search failed: " + e.getMessage());
+            result.setError("Hunter unexpected error: " + e.getMessage());
         }
 
         return result;
+    }
+
+    private String getHttpErrorMessage(int code) {
+        switch (code) {
+            case 401: return "Invalid API key";
+            case 403: return "API access denied or insufficient credit";
+            case 429: return "Rate limit exceeded";
+            case 500: return "API server error";
+            default: return "HTTP error " + code;
+        }
     }
 }
